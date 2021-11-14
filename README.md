@@ -1,6 +1,6 @@
 # JPGIS DEM tool
 
-A CLI tool to convert Japanese DEM XML files into Geotifs.
+A CLI tool to convert Japanese DEM XML files into Geotifs. A Python port of [tmizu23/demtool](https://github.com/tmizu23/demtool).
 
 ## Installation
 

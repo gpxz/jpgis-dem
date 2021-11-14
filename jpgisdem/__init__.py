@@ -11,7 +11,7 @@ import rasterio
 import rasterio.merge
 from lxml import etree
 
-__version__ = "0.0.3"
+__version__ = "0.0.4"
 
 
 # NODATA seems to be -9999 for all DEMs. A more advanced (but slower) way to
@@ -348,17 +348,25 @@ def _xml2tif(src_file, dst_file):
             with archive.open(xml_path) as fhz:
                 _xml2tif_single_file(fhz, tif_path)
 
+        # Check all have the same crs.
+        epsgs = []
+        for p in tif_paths:
+            with rasterio.open(p) as f:
+                epsgs.append(f.crs.to_epsg())
+        if len(set(epsgs)) > 1:
+            raise click.ClickException(
+                "ZIP file contains XML rasters wih differing reference systems."
+            )
+
         # Merge rasters.
         dest, transform = rasterio.merge.merge(tif_paths)
         dest = dest[0]
-        with rasterio.open(tif_paths[0]) as f:
-            crs = f.crs
         with rasterio.open(
             dst_file,
             "w",
             width=dest.shape[1],
             height=dest.shape[0],
-            crs=crs,
+            crs=f"epsg:{epsgs[0]}",
             transform=transform,
             **COG_PROFILE,
         ) as f:
