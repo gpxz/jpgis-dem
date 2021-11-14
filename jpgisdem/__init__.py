@@ -1,16 +1,25 @@
+import os
+import random
+import shutil
+import string
+import tempfile
+import zipfile
+
 import click
 import numpy as np
 import rasterio
+import rasterio.merge
 from lxml import etree
 
-# from rasterio.coords import BoundingBox
-# from rasterio.crs import CRS
+__version__ = "0.0.3"
 
 
-__version__ = "0.0.1"
-
+# NODATA seems to be -9999 for all DEMs. A more advanced (but slower) way to
+# handle this would be to parse the japanese text NODATA flag on each cell.
 NODATA_VALUE = -9999.0
 
+
+# Save output as a compressed cloud-optimised geotiff.
 COG_PROFILE = {
     "count": 1,
     "driver": "GTiff",
@@ -23,24 +32,49 @@ COG_PROFILE = {
 }
 
 
+def _random_string(n=16):
+    return "".join(random.choices(string.ascii_lowercase, k=n))
+
+
+def _tmp_path(tmp_folder, extension=""):
+    if extension and not extension.startswith("."):
+        extension = "." + extension
+    os.makedirs(tmp_folder, exist_ok=True)
+    filename = _random_string(16) + extension
+    path = os.path.join(tmp_folder, filename)
+    return path
+
+
 def _load_xml(fh):
+    """Parse the xml file.
+
+    Args:
+        fh: File handle to an xml file (for a zipped xml file).
+
+    Returns:
+        root: Root node of ElementTree.
+    """
     try:
-        tree = etree.parse(fh)
+
+        # For zip files, parse the first file in the zipped directory.
+        # if fh.name.lower().endswith(".zip"):
+        #     archive = zipfile.ZipFile(fh)
+        #     items = archive.namelist()[0]
+        #     with archive.open(items) as fhz:
+        #         tree = etree.parse(fhz, parser=etree.XMLParser(huge_tree=True))
+        # else:
+        tree = etree.parse(fh, parser=etree.XMLParser(huge_tree=True))
+
         root = tree.getroot()
 
         # Remove namespace.
         # From https://stackoverflow.com/questions/18159221/remove-namespace-and-prefix-from-xml-in-python-using-lxml
         for elem in root.getiterator():
-
-            # Skip comments and processing instructions, because they do not have names.
             if not (
                 isinstance(elem, etree._Comment)
                 or isinstance(elem, etree._ProcessingInstruction)
             ):
-                # Remove a namespace URI in the element's name
                 elem.tag = etree.QName(elem).localname
-
-        # Remove unused namespace declarations
         etree.cleanup_namespaces(root)
 
         return root
@@ -52,6 +86,16 @@ def _load_xml(fh):
 
 
 def _parse_crs(root):
+    """Find the coordinate system on the xml.
+
+    DEM files are either jgd2011 or jgd2000 (which are similar within a few metres for Japan).
+
+    Args:
+        root: ElementTree of xml document.
+
+    Returns:
+        crs: rasterio CRS object.
+    """
     try:
         gml_srs = root.xpath("DEM/coverage/boundedBy/Envelope/@srsName")[0]
     except IndexError:
@@ -70,6 +114,14 @@ def _parse_crs(root):
 
 
 def _parse_shape(root):
+    """Get the shape of the array from the xml file.
+
+    Args:
+        root: ElementTree of xml document.
+
+    Returns:
+        height, width: Ingeger shape.
+    """
     try:
         gml_grid_low = root.xpath(
             "DEM/coverage/gridDomain/Grid/limits/GridEnvelope/low"
@@ -100,6 +152,14 @@ def _parse_shape(root):
 
 
 def _parse_bounds(root):
+    """Find the bounds of the raster, in the crs.
+
+    Args:
+        root: ElementTree of xml document.
+
+    Returns:
+        bounds: rasterio BoundingBox.
+    """
     try:
         gml_lower_corner = root.xpath("DEM/coverage/boundedBy/Envelope/lowerCorner")[
             0
@@ -123,6 +183,19 @@ def _parse_bounds(root):
 
 
 def _load_start_data(root, height, width):
+    """Load 'compressed' elevation data at the start of the array.
+
+    When the raster starts with NULL data, this is encoded by a starting
+    offset, rather than including each individual value.
+
+    This function reads the offset and makes a NODATA array of that length.
+
+    Args:
+        root: ElementTree of xml document.
+
+    Returns:
+        data: numpy array, all NODATA values, of the appropriate length.
+    """
     try:
         gml_startpoint = root.xpath(
             "DEM/coverage/coverageFunction/GridFunction/startPoint"
@@ -138,6 +211,16 @@ def _load_start_data(root, height, width):
 
 
 def _load_main_data(root):
+    """Load main data.
+
+    Reads xml data line by line.
+
+    Args:
+        root: ElementTree of xml document.
+
+    Returns:
+        data: numpy array.
+    """
     try:
         gml_data = root.xpath("DEM/coverage/rangeSet/DataBlock/tupleList")[0].text
         tuple_strings = gml_data.strip().split("\n")
@@ -149,24 +232,50 @@ def _load_main_data(root):
 
 
 def _merge_data(start_data, main_data, height, width):
+    """Generate full 2D raster data.
+
+    Concatenates start_data and main_data, then pads with trailing data to
+    match desired shape.
+
+    Args:
+        start_data: array of any NODATA values at start of file.
+        main_data: array of sunsequent values.
+        height, width: raster shape.
+
+    Returns:
+        array: 2D raster data.
+    """
     # Merge.
     data = np.concatenate([start_data, main_data])
 
     # Handle NODATA.
     data[data == NODATA_VALUE] = np.nan
 
-    # Reshape to square.
+    # Pad out to full size.
     n_cells = height * width
-    if not n_cells == len(data):
+    if len(data) > n_cells:
         raise click.ClickException(
-            f"Data size {len(data)} doesn't match desired size {n_cells}"
+            f"Data size {len(data)} exceedes desired size {n_cells}"
         )
+    if len(data) < n_cells:
+        end_data = np.empty(n_cells - len(data), dtype=np.float32)
+        end_data[:] = np.nan
+        data = np.concatenate([data, end_data])
+
+    # Reshape to square.
+    assert len(data) == n_cells
     array = data.reshape((height, width))
 
     return array
 
 
-def _rasterize(src_file, dst_file):
+def _xml2tif_single_file(src_file, dst_file):
+    """Rasterise a GML xml file.
+
+    Args:
+        src_file: filehandle of xml file.
+        dst_file: filehandle of geotiff to write to.
+    """
     # Load file.
     root = _load_xml(src_file)
 
@@ -207,8 +316,57 @@ def cli():
 @click.command()
 @click.argument("src_file", type=click.File("rb"))
 @click.argument("dst_file", type=click.File("wb"))
-def rasterize(src_file, dst_file):
-    _rasterize(src_file, dst_file)
+def xml2tif(src_file, dst_file):
+    _xml2tif(src_file, dst_file)
 
 
-cli.add_command(rasterize)
+def _xml2tif(src_file, dst_file):
+
+    # If xml, parse as normal.
+    if not src_file.name.lower().endswith(".zip"):
+        return _xml2tif_single_file(src_file, dst_file)
+
+    # If single-file zip, parse as normal.
+    archive = zipfile.ZipFile(src_file.name)
+    items = archive.namelist()
+    n_items = len(items)
+    if n_items == 0:
+        raise (click.ClickException("Empty zip."))
+    if n_items == 1:
+        with archive.open(items[0]) as fhz:
+            return _xml2tif_single_file(fhz, dst_file)
+
+    # If multiple file zip, convert each individually, then merge together.
+    try:
+
+        # Setup.
+        tmp_folder = tempfile.mkdtemp()
+        tif_paths = [_tmp_path(tmp_folder, ".tif") for _ in range(n_items)]
+
+        # Build individual tmp rasters.
+        for xml_path, tif_path in zip(items, tif_paths):
+            with archive.open(xml_path) as fhz:
+                _xml2tif_single_file(fhz, tif_path)
+
+        # Merge rasters.
+        dest, transform = rasterio.merge.merge(tif_paths)
+        dest = dest[0]
+        with rasterio.open(tif_paths[0]) as f:
+            crs = f.crs
+        with rasterio.open(
+            dst_file,
+            "w",
+            width=dest.shape[1],
+            height=dest.shape[0],
+            crs=crs,
+            transform=transform,
+            **COG_PROFILE,
+        ) as f:
+            f.write(dest, 1)
+
+    finally:
+        if os.path.exists(tmp_folder):
+            shutil.rmtree(tmp_folder)
+
+
+cli.add_command(xml2tif)
