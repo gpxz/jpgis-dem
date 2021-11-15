@@ -1,4 +1,4 @@
-.PHONY: black isort fmt
+.PHONY: black isort fmt test pypi
 
 
 black:
@@ -11,7 +11,13 @@ isort:
 
 fmt: isort black
 
+
 test: 
 	pytest --ignore=data
+
+
+pypi:
+	python setup.py sdist bdist_wheel
+	python -m twine upload dist/*
 
 

@@ -27,6 +27,7 @@ setup(
     version=version,
     description="Convert JPGIS .xml DEM files to geotiffs.",
     long_description=readme,
+    long_description_content_type='text/markdown',
     url="https://github.com/gpxz/jpgis-dem",
     download_url="https://github.com/gpxz/jpgis-dem",
     author="Andrew Nisbet",

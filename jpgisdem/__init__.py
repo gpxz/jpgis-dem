@@ -11,7 +11,7 @@ import rasterio
 import rasterio.merge
 from lxml import etree
 
-__version__ = "0.0.4"
+__version__ = "0.0.5"
 
 
 # NODATA seems to be -9999 for all DEMs. A more advanced (but slower) way to
@@ -29,6 +29,7 @@ COG_PROFILE = {
     "blockxsize": 512,
     "blockysize": 512,
     "interleave": "pixel",
+    "nodata": NODATA_VALUE,
 }
 
 
@@ -359,7 +360,7 @@ def _xml2tif(src_file, dst_file):
             )
 
         # Merge rasters.
-        dest, transform = rasterio.merge.merge(tif_paths)
+        dest, transform = rasterio.merge.merge(tif_paths, nodata=NODATA_VALUE)
         dest = dest[0]
         with rasterio.open(
             dst_file,
