@@ -11,7 +11,7 @@ import rasterio
 import rasterio.merge
 from lxml import etree
 
-__version__ = "0.0.5"
+__version__ = "0.0.6"
 
 
 # NODATA seems to be -9999 for all DEMs. A more advanced (but slower) way to

@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # coding: utf8
 
-
+from setuptools import find_packages
 import re
 
 
@@ -34,6 +34,7 @@ setup(
     author_email="andrew@gpxz.io",
     license="The MIT License",
     package_data={"": ["LICENSE", "README.md"]},
+    packages=find_packages(),
     py_modules=["jpgisdem"],
     install_requires=[
         "Click",
