@@ -37,7 +37,10 @@ setup(
     packages=find_packages(),
     py_modules=["jpgisdem"],
     install_requires=[
-        "Click",
+        "click",
+        "lxml",
+        "numpy",
+        "rasterio",
     ],
     entry_points={
         "console_scripts": [
