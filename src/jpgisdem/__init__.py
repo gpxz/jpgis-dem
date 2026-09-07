@@ -11,7 +11,6 @@ import rasterio
 import rasterio.merge
 from lxml import etree
 
-
 # NODATA seems to be -9999 for all DEMs. A more advanced (but slower) way to
 # handle this would be to parse the japanese text NODATA flag on each cell.
 NODATA_VALUE = -9999.0
