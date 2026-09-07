@@ -1,6 +1,6 @@
 [project]
 name = "jpgis-dem"
-version = "0.2.0"
+version = "0.0.8"
 description = "Convert JPGIS .xml DEM files to geotiffs."
 readme = "README.md"
 authors = [
