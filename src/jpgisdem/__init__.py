@@ -53,24 +53,12 @@ def _load_xml(fh):
         root: Root node of ElementTree.
     """
     try:
-        # For zip files, parse the first file in the zipped directory.
-        # if fh.name.lower().endswith(".zip"):
-        #     archive = zipfile.ZipFile(fh)
-        #     items = archive.namelist()[0]
-        #     with archive.open(items) as fhz:
-        #         tree = etree.parse(fhz, parser=etree.XMLParser(huge_tree=True))
-        # else:
         tree = etree.parse(fh, parser=etree.XMLParser(huge_tree=True))
-
         root = tree.getroot()
-
         # Remove namespace.
         # From https://stackoverflow.com/questions/18159221/remove-namespace-and-prefix-from-xml-in-python-using-lxml
         for elem in root.getiterator():
-            if not (
-                isinstance(elem, etree._Comment)
-                or isinstance(elem, etree._ProcessingInstruction)
-            ):
+            if not (isinstance(elem, (etree._Comment, etree._ProcessingInstruction))):
                 elem.tag = etree.QName(elem).localname
         etree.cleanup_namespaces(root)
 
@@ -102,6 +90,8 @@ def _parse_crs(root):
         epsg = 6668
     elif gml_srs == "fguuid:jgd2000.bl":
         epsg = 4612
+    elif gml_srs == "fguuid:jgd2024.bl":
+        epsg = 6668  # Use for now until an EPSG is issued for JGD2024.
     else:
         raise click.ClickException(f"Unsupported srs: '{gml_srs}'.")
 
@@ -173,7 +163,8 @@ def _parse_bounds(root):
         top = float(gml_upper_corner.split(" ")[0])
         right = float(gml_upper_corner.split(" ")[1])
         bounds = rasterio.coords.BoundingBox(left, bottom, right, top)
-    except Exception:
+    except Exception as e:
+        print(e)
         raise click.ClickException("Unable to parse Envelope bounds.")
 
     return bounds
@@ -199,7 +190,8 @@ def _load_start_data(root, height, width):
         )[0].text
         x_start = int(gml_startpoint.split(" ")[0])
         y_start = int(gml_startpoint.split(" ")[1])
-    except Exception:
+    except Exception as e:
+        print(e)
         raise click.ClickException("Unable to parse startPoint.")
 
     n_start = width * y_start + x_start
@@ -223,7 +215,8 @@ def _load_main_data(root):
         tuple_strings = gml_data.strip().split("\n")
         data_strings = [t.split(",")[-1] for t in tuple_strings]
         data = np.array(data_strings, dtype=np.float32)
-    except Exception:
+    except Exception as e:
+        print(e)
         raise click.ClickException("Unable to parse main data.")
     return data
 

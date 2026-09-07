@@ -46,3 +46,8 @@ build-backend = "uv_build"
 
 [tool.uv.build-backend]
 module-name = "jpgisdem"
+
+[tool.ruff.lint]
+ignore = [
+    "BLE001", # Do not catch blind exception: `except Exception:`
+]
