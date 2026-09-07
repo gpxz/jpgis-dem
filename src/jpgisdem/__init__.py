@@ -30,11 +30,11 @@ COG_PROFILE = {
 }
 
 
-def _random_string(n=16):
+def _random_string(n: int = 16):
     return "".join(random.choices(string.ascii_lowercase, k=n))
 
 
-def _tmp_path(tmp_folder, extension=""):
+def _tmp_path(tmp_folder: str, extension: str = ""):
     if extension and not extension.startswith("."):
         extension = "." + extension
     os.makedirs(tmp_folder, exist_ok=True)
@@ -56,8 +56,9 @@ def _load_xml(fh):
         tree = etree.parse(fh, parser=etree.XMLParser(huge_tree=True))
         root = tree.getroot()
         # Remove namespace.
+        #
         # From https://stackoverflow.com/questions/18159221/remove-namespace-and-prefix-from-xml-in-python-using-lxml
-        for elem in root.getiterator():
+        for elem in root.iter():
             if not (isinstance(elem, (etree._Comment, etree._ProcessingInstruction))):
                 elem.tag = etree.QName(elem).localname
         etree.cleanup_namespaces(root)
