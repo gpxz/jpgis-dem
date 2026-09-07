@@ -1,3 +1,4 @@
+import json
 import os
 import random
 import shutil
@@ -17,7 +18,7 @@ NODATA_VALUE = -9999.0
 
 
 # Save output as a compressed cloud-optimised geotiff.
-COG_PROFILE = {
+DEFAULT_RASTER_PROFILE = {
     "count": 1,
     "driver": "GTiff",
     "dtype": np.float32,
@@ -165,7 +166,7 @@ def _parse_bounds(root):
         right = float(gml_upper_corner.split(" ")[1])
         bounds = rasterio.coords.BoundingBox(left, bottom, right, top)
     except Exception as e:
-        print(e)
+        click.echo(e, err=True)
         raise click.ClickException("Unable to parse Envelope bounds.")
 
     return bounds
@@ -192,7 +193,7 @@ def _load_start_data(root, height, width):
         x_start = int(gml_startpoint.split(" ")[0])
         y_start = int(gml_startpoint.split(" ")[1])
     except Exception as e:
-        print(e)
+        click.echo(e, err=True)
         raise click.ClickException("Unable to parse startPoint.")
 
     n_start = width * y_start + x_start
@@ -217,7 +218,7 @@ def _load_main_data(root):
         data_strings = [t.split(",")[-1] for t in tuple_strings]
         data = np.array(data_strings, dtype=np.float32)
     except Exception as e:
-        print(e)
+        click.echo(e, err=True)
         raise click.ClickException("Unable to parse main data.")
     return data
 
@@ -260,7 +261,7 @@ def _merge_data(start_data, main_data, height, width):
     return array
 
 
-def _xml2tif_single_file(src_file, dst_file):
+def _xml2tif_single_file(src_file, dst_file, raster_profile: dict):
     """Rasterise a GML xml file.
 
     Args:
@@ -294,7 +295,7 @@ def _xml2tif_single_file(src_file, dst_file):
         height=height,
         crs=crs,
         transform=transform,
-        **COG_PROFILE,
+        **raster_profile,
     ) as f:
         f.write(array, 1)
 
@@ -307,15 +308,31 @@ def cli():
 @click.command()
 @click.argument("src_file", type=click.File("rb"))
 @click.argument("dst_file", type=click.File("wb"))
-def xml2tif(src_file, dst_file):
-    _xml2tif(src_file, dst_file)
+@click.option(
+    "--raster-profile",
+    type=click.Path(exists=True, dir_okay=False),
+    help="Path to a JSON file containing rastio profile arguments.",
+)
+def xml2tif(src_file, dst_file, raster_profile=None):
+    _xml2tif(src_file, dst_file, raster_profile)
 
 
-def _xml2tif(src_file, dst_file):
+def _xml2tif(src_file, dst_file, raster_profile_path=None):
+
+    # Build profile.
+    raster_profile = DEFAULT_RASTER_PROFILE.copy()
+    if raster_profile_path:
+        with open(raster_profile_path) as f:
+            profile = json.load(f)
+        for k, v in profile.items():
+            if v is None and k in raster_profile:
+                del raster_profile[k]
+            else:
+                raster_profile[k] = v
 
     # If xml, parse as normal.
     if not src_file.name.lower().endswith(".zip"):
-        return _xml2tif_single_file(src_file, dst_file)
+        return _xml2tif_single_file(src_file, dst_file, raster_profile=raster_profile)
 
     # If single-file zip, parse as normal.
     archive = zipfile.ZipFile(src_file.name)
@@ -325,7 +342,7 @@ def _xml2tif(src_file, dst_file):
         raise (click.ClickException("Empty zip."))
     if n_items == 1:
         with archive.open(items[0]) as fhz:
-            return _xml2tif_single_file(fhz, dst_file)
+            return _xml2tif_single_file(fhz, dst_file, raster_profile=raster_profile)
 
     # If multiple file zip, convert each individually, then merge together.
     try:
@@ -336,7 +353,7 @@ def _xml2tif(src_file, dst_file):
         # Build individual tmp rasters.
         for xml_path, tif_path in zip(items, tif_paths):
             with archive.open(xml_path) as fhz:
-                _xml2tif_single_file(fhz, tif_path)
+                _xml2tif_single_file(fhz, tif_path, raster_profile=raster_profile)
 
         # Check all have the same crs.
         epsgs = []
@@ -358,7 +375,7 @@ def _xml2tif(src_file, dst_file):
             height=dest.shape[0],
             crs=f"epsg:{epsgs[0]}",
             transform=transform,
-            **COG_PROFILE,
+            **raster_profile,
         ) as f:
             f.write(dest, 1)
 

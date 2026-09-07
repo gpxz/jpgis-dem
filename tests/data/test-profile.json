@@ -1,0 +1,4 @@
+{
+    "compress": "zstd",
+    "zstd_level": 1
+}
