@@ -1,23 +1,24 @@
-.PHONY: black isort fmt test pypi
+.PHONY: fmt lint test build publish clean
+
+fmt:
+	uv run ruff format .
+	uv run ruff check --fix .
+
+lint:
+	uv run ruff check .
+	uv run ruff format --check .
+
+test: lint
+	uv run pytest --ignore=data
 
 
-black:
-	black --target-version py38 jpgisdem setup.py tests
+build:
+	uv build
 
+publish: clean build
+	uv publish
 
-isort:
-	isort --profile black --project jpgisdem ./jpgisdem ./tests
-
-
-fmt: isort black
-
-
-test: 
-	pytest --ignore=data
-
-
-pypi:
-	python setup.py sdist bdist_wheel
-	python -m twine upload dist/*
+clean:
+	rm -rf dist/ build/ *.egg-info .ruff_cache/ .pytest_cache/
 
 

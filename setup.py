@@ -1,9 +1,8 @@
 #!/usr/bin/python
-# coding: utf8
 
-from setuptools import find_packages
 import re
 
+from setuptools import find_packages
 
 try:
     from setuptools import setup
@@ -27,7 +26,7 @@ setup(
     version=version,
     description="Convert JPGIS .xml DEM files to geotiffs.",
     long_description=readme,
-    long_description_content_type='text/markdown',
+    long_description_content_type="text/markdown",
     url="https://github.com/gpxz/jpgis-dem",
     download_url="https://github.com/gpxz/jpgis-dem",
     author="Andrew Nisbet",

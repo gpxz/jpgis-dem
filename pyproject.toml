@@ -1,0 +1,45 @@
+[project]
+name = "jpgis-dem"
+version = "0.2.0"
+description = "Convert JPGIS .xml DEM files to geotiffs."
+readme = "README.md"
+authors = [
+    { name = "ajnisbet", email = "andrew@gpxz.io" }
+]
+requires-python = ">=3.8"
+keywords = ["elevation", "gis", "dem", "jpgis"]
+license = "MIT"
+classifiers = [
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Natural Language :: English",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: GIS",
+]
+
+dependencies = [
+    "click",
+    "lxml",
+    "numpy",
+    "rasterio",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "ruff",
+]
+
+[project.urls]
+Homepage = "https://github.com/gpxz/jpgis-dem"
+Repository = "https://github.com/gpxz/jpgis-dem"
+
+[project.scripts]
+jpgis-dem = "jpgisdem:cli"
+
+
+[build-system]
+requires = ["uv_build"]
+build-backend = "uv_build"

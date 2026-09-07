@@ -11,8 +11,6 @@ import rasterio
 import rasterio.merge
 from lxml import etree
 
-__version__ = "0.0.7"
-
 
 # NODATA seems to be -9999 for all DEMs. A more advanced (but slower) way to
 # handle this would be to parse the japanese text NODATA flag on each cell.
@@ -56,7 +54,6 @@ def _load_xml(fh):
         root: Root node of ElementTree.
     """
     try:
-
         # For zip files, parse the first file in the zipped directory.
         # if fh.name.lower().endswith(".zip"):
         #     archive = zipfile.ZipFile(fh)
@@ -80,7 +77,7 @@ def _load_xml(fh):
 
         return root
 
-    except Exception as e:
+    except Exception:
         raise click.ClickException(
             f"Unable to parse '{fh.name}'. Is it a valid xml file?"
         )
@@ -146,7 +143,7 @@ def _parse_shape(root):
 
         width = xmax + 1 - xmin
         height = ymax + 1 - ymin
-    except Exception as e:
+    except Exception:
         raise click.ClickException("Unable to parse GridEnvelope shape.")
 
     return height, width
@@ -177,7 +174,7 @@ def _parse_bounds(root):
         top = float(gml_upper_corner.split(" ")[0])
         right = float(gml_upper_corner.split(" ")[1])
         bounds = rasterio.coords.BoundingBox(left, bottom, right, top)
-    except Exception as e:
+    except Exception:
         raise click.ClickException("Unable to parse Envelope bounds.")
 
     return bounds
@@ -203,7 +200,7 @@ def _load_start_data(root, height, width):
         )[0].text
         x_start = int(gml_startpoint.split(" ")[0])
         y_start = int(gml_startpoint.split(" ")[1])
-    except Exception as e:
+    except Exception:
         raise click.ClickException("Unable to parse startPoint.")
 
     n_start = width * y_start + x_start
@@ -227,7 +224,7 @@ def _load_main_data(root):
         tuple_strings = gml_data.strip().split("\n")
         data_strings = [t.split(",")[-1] for t in tuple_strings]
         data = np.array(data_strings, dtype=np.float32)
-    except Exception as e:
+    except Exception:
         raise click.ClickException("Unable to parse main data.")
     return data
 
@@ -339,7 +336,6 @@ def _xml2tif(src_file, dst_file):
 
     # If multiple file zip, convert each individually, then merge together.
     try:
-
         # Setup.
         tmp_folder = tempfile.mkdtemp()
         tif_paths = [_tmp_path(tmp_folder, ".tif") for _ in range(n_items)]
